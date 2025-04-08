@@ -177,6 +177,7 @@ namespace osu.Game.Overlays.Toolbar
                                             userButton = new ToolbarUserButton(),
                                             new ToolbarClock(),
                                             new ToolbarNotificationButton(),
+                                            new ToolbarRulesetManagerButton(),
                                         }
                                     },
                                 }
