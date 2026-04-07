@@ -4,11 +4,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
+using osu.Framework.Audio;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
@@ -47,8 +51,14 @@ namespace osu.Game.Screens.Play
 
         private ReplayFailIndicator? failIndicator;
         private PlaybackSettings? playbackSettings;
+        private readonly BindableDouble renderMuteAdjustment = new BindableDouble(0);
+        private CancellationTokenSource? frameRenderCancellation;
+        private Task? frameRenderTask;
 
         public ReplayOverlay ReplayOverlay { get; private set; } = null!;
+
+        [Resolved]
+        private GameHost host { get; set; } = null!;
 
         protected override bool CheckModsAllowFailure()
         {
@@ -138,6 +148,30 @@ namespace osu.Game.Screens.Play
                     }
                 }
             });
+
+            if (ScoreVideoRenderer.ConsumePendingRequest(Score.ScoreInfo))
+            {
+                Beatmap.Value.Track.AddAdjustment(AdjustableProperty.Volume, renderMuteAdjustment);
+
+                frameRenderCancellation = new CancellationTokenSource();
+                frameRenderTask = Task.Run(() => renderFrames(frameRenderCancellation.Token), frameRenderCancellation.Token);
+            }
+        }
+
+        private async Task renderFrames(CancellationToken cancellationToken)
+        {
+            const double frame_time_ms = 1000.0 / 60.0;
+            int totalFrames = Math.Max(1, (int)Math.Ceiling((Score.Replay.Frames.LastOrDefault()?.Time ?? 0) / frame_time_ms));
+
+            for (int frame = 1; frame <= totalFrames; frame++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using (await host.TakeScreenshotAsync().ConfigureAwait(false))
+                    Console.WriteLine($"Rendered frame {frame}/{totalFrames}");
+
+                await Task.Delay(TimeSpan.FromMilliseconds(frame_time_ms), cancellationToken).ConfigureAwait(false);
+            }
         }
 
         protected override void PrepareReplay()
@@ -235,6 +269,12 @@ namespace osu.Game.Screens.Play
         {
             // safety against filters or samples from the indicator playing long after the screen is exited
             failIndicator?.RemoveAndDisposeImmediately();
+
+            frameRenderCancellation?.Cancel();
+            frameRenderCancellation = null;
+
+            Beatmap.Value.Track.RemoveAdjustment(AdjustableProperty.Volume, renderMuteAdjustment);
+
             return base.OnExiting(e);
         }
 

@@ -78,6 +78,9 @@ namespace osu.Game.Online.Leaderboards
         [Resolved(canBeNull: true)]
         private OsuGame game { get; set; }
 
+        [Resolved(canBeNull: true)]
+        private INotificationOverlay notificationOverlay { get; set; }
+
         [Resolved]
         private IAPIProvider api { get; set; }
 
@@ -463,6 +466,7 @@ namespace osu.Game.Online.Leaderboards
 
                 if (Score.Files.Count > 0)
                 {
+                    items.Add(new OsuMenuItem("Render to video", MenuItemType.Standard, () => ScoreVideoRenderer.RequestRender(Score, game, notificationOverlay)));
                     items.Add(new OsuMenuItem(CommonStrings.Export, MenuItemType.Standard, () => scoreManager.Export(Score)));
                     items.Add(new OsuMenuItem(WebCommonStrings.ButtonsDelete, MenuItemType.Destructive, () => dialogOverlay?.Push(new LocalScoreDeleteDialog(Score))));
                 }
