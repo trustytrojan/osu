@@ -32,6 +32,7 @@ using osu.Framework.IO.Stores;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
+using osu.Framework.Screens;
 using osu.Framework.Timing;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
@@ -796,5 +797,10 @@ namespace osu.Game
         ControlPointInfo IBeatSyncProvider.ControlPoints => Beatmap.Value.BeatmapLoaded ? Beatmap.Value.Beatmap.ControlPointInfo : null;
         IClock IBeatSyncProvider.Clock => beatmapClock;
         ChannelAmplitudes IHasAmplitudes.CurrentAmplitudes => Beatmap.Value.TrackLoaded ? Beatmap.Value.Track.CurrentAmplitudes : ChannelAmplitudes.Empty;
+
+        protected ScreenStack CaptureStack = new() { Size = new() { X = 1280, Y = 720 } };
+        protected ManualClock CaptureTimeSource;
+        public IFrameBasedClock CaptureClock;
+        protected bool CaptureStackInitialized = false;
     }
 }

@@ -273,6 +273,7 @@ namespace osu.Game.Screens.Play
             {
                 GameplayClockContainer = CreateGameplayClockContainer(Beatmap.Value, DrawableRuleset.GameplayStartTime),
             };
+            GameplayClockContainer.ChangeSource(game.CaptureClock);
 
             AddInternal(screenSuspension = new ScreenSuspensionHandler(GameplayClockContainer));
 

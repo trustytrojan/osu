@@ -164,7 +164,7 @@ namespace osu.Game.Screens.Play
         /// Changes the source clock.
         /// </summary>
         /// <param name="sourceClock">The new source.</param>
-        protected void ChangeSource(IClock sourceClock) => GameplayClock.ChangeSource(sourceClock);
+        public void ChangeSource(IClock sourceClock) => GameplayClock.ChangeSource(sourceClock);
 
         #region IAdjustableClock
 
