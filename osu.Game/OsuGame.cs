@@ -943,16 +943,19 @@ namespace osu.Game
                             CaptureClock = new MyClock(CaptureTimeSource);
                             CaptureStack.Clock = CaptureClock;
                             CaptureStackInitialized = true;
-                        }
-                        new Thread(() =>
-                        {
-                            // Feels like 0.5x speed when you watch a replay! We can control time!
-                            while (true)
+                            new Thread(() =>
                             {
-                                Thread.Sleep(33);
-                                CaptureTimeSource.CurrentTime += 16;
-                            }
-                        }).Start();
+                                // Feels like 0.5x speed when you watch a replay! We can control time!
+                                while (true)
+                                {
+                                    Thread.Sleep(33);
+                                    CaptureTimeSource.CurrentTime += 16;
+                                }
+                            })
+                            {
+                                IsBackground = true
+                            }.Start();
+                        }
                         var rpl = new ReplayPlayerLoader(databasedScore);
                         // captureStack.Push(rpl);
                         screen.Push(rpl);
