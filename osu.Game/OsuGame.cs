@@ -900,8 +900,9 @@ namespace osu.Game
                 switch (presentType)
                 {
                     case ScorePresentType.Gameplay:
+                        var stack = ScreenExtensions.getStack(screen);
                         var rpl = new ReplayPlayerLoader(databasedScore);
-                        screen.Push(rpl);
+                        stack.Push(rpl);
                         // Only start recording when the ReplayPlayerLoader loads the ReplayPlayer
                         Action waitForNonNullPlayerThenStart = null;
                         Schedule(waitForNonNullPlayerThenStart = () =>
@@ -911,7 +912,11 @@ namespace osu.Game
                                 Schedule(waitForNonNullPlayerThenStart);
                             else
                             {
-                                StartRecording(player);
+                                var workingBeatmap = Beatmap.Value;
+                                string audioFilename = workingBeatmap.Metadata.AudioFile;
+                                string audioPath = workingBeatmap.BeatmapSetInfo.GetPathForFile(audioFilename);
+                                string absoluteAudioPath = Host.Storage.GetStorageForDirectory("files").GetFullPath(audioPath);
+                                StartRecording(stack, absoluteAudioPath);
                                 player.GameplayClockContainer.ChangeSource(CaptureClock);
                                 player.Clock = CaptureClock;
                             }

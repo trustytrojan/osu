@@ -21,6 +21,8 @@ using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Textures;
+using osu.Framework.Graphics.Video;
+using osu.Framework.Graphics.Visualisation;
 using osu.Framework.Input;
 using osu.Framework.Input.Handlers;
 using osu.Framework.Input.Handlers.Joystick;
@@ -62,6 +64,7 @@ using osu.Game.Resources;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
+using osu.Game.Screens.Play;
 using osu.Game.Skinning;
 using osu.Game.Utils;
 using SixLabors.ImageSharp;
@@ -841,11 +844,14 @@ namespace osu.Game
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
         private List<Size> sizeHistory = [];
+        private const int size_history_limit = 1;
+        private string audioFilePath;
 
         private bool currentlyCapturing = false;
 
-        protected void StartRecording(Drawable drawable)
+        protected void StartRecording(Drawable drawable, string audioFilePath)
         {
+            this.audioFilePath = audioFilePath;
             CaptureTimeSource.CurrentTime = 0;
             CaptureClock = new MyClock(CaptureTimeSource);
             Recording = true;
@@ -893,21 +899,21 @@ namespace osu.Game
 
             if (ffmpeg == null)
             {
-                if (sizeHistory.Count == 10 && sizeHistory.All(image.Size.Equals))
+                if (sizeHistory.Count == size_history_limit && sizeHistory.All(image.Size.Equals))
                 {
-                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60);
+                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, audioFilePath: audioFilePath);
                 }
                 else
                 {
-                    if (sizeHistory.Count >= 10)
+                    if (sizeHistory.Count >= size_history_limit)
                         sizeHistory.RemoveAt(0);
                     sizeHistory.Add(image.Size);
                 }
                 return;
             }
 
-            // using (image)
-            ffmpeg.WriteFrame(image);
+            using (image)
+                ffmpeg.WriteFrame(image);
         }
     }
 }
