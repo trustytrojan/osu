@@ -11,8 +11,13 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
+using ManagedBass;
+using ManagedBass.Mix;
+using Microsoft.Toolkit.HighPerformance;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
+using osu.Framework.Audio.Mixing;
+using osu.Framework.Audio.Mixing.Bass;
 using osu.Framework.Audio.Track;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
@@ -846,6 +851,10 @@ namespace osu.Game
         private List<Size> sizeHistory = [];
         private const int size_history_limit = 1;
         private string audioFilePath;
+        private int samplerate, channels;
+        private Resolution resolution;
+        private int sampleMixerHandle;
+        private byte[] audioBuf = null;
 
         private bool currentlyCapturing = false;
 
@@ -861,9 +870,23 @@ namespace osu.Game
             if (size.X < 1000 || size.Y < 500)
                 throw new ArgumentException($"Draw size {size} too small!");
 
-            ffmpeg?.Close();
+            ffmpeg?.Dispose();
             ffmpeg = null;
             currentlyCapturing = false;
+
+            // Get audio channel info
+            sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
+            Logger.Log($"StartRecording: sampleMixerHandle: {sampleMixerHandle}");
+            if (Bass.ChannelGetInfo(sampleMixerHandle, out ChannelInfo info))
+            {
+                samplerate = info.Frequency;
+                channels = info.Channels;
+                resolution = info.Resolution;
+            }
+            else
+            {
+                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
+            }
 
             CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
@@ -872,7 +895,7 @@ namespace osu.Game
         public void StopRecording()
         {
             Recording = false;
-            ffmpeg?.Close();
+            ffmpeg?.Dispose();
             ffmpeg = null;
         }
 
@@ -901,7 +924,9 @@ namespace osu.Game
             {
                 if (sizeHistory.Count == size_history_limit && sizeHistory.All(image.Size.Equals))
                 {
-                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, audioFilePath: audioFilePath);
+                    // ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, audioFilePath: audioFilePath);
+                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, samplerate, ResolutionToFfmpegSmpFmt(resolution), channels);
+                    _ = ffmpeg.Start();
                 }
                 else
                 {
@@ -914,6 +939,55 @@ namespace osu.Game
 
             using (image)
                 ffmpeg.WriteFrame(image);
+
+            if (audioBuf == null)
+            {
+                int afpvf = samplerate / 60;
+                int samples = afpvf * channels;
+                int sampleSize = ResolutionToByteSize(resolution);
+                audioBuf = new byte[samples * sampleSize];
+            }
+
+            int bytesRead = Bass.ChannelGetData(sampleMixerHandle, audioBuf, audioBuf.Length);
+            if (bytesRead == -1)
+                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
+
+            ffmpeg.WriteAudio(audioBuf.AsSpan().AsBytes().Slice(0, bytesRead));
+        }
+
+        public static int GetMixerHandle(AudioMixer mixer)
+        {
+            // Get the BassAudioMixer type (internal class)  
+            Type bassMixerType = typeof(AudioMixer).Assembly
+                .GetType("osu.Framework.Audio.Mixing.Bass.BassAudioMixer") ?? throw new InvalidOperationException("BassAudioMixer type not found");
+
+            // Get the Handle property  
+            PropertyInfo handleProperty = bassMixerType.GetProperty("Handle") ?? throw new InvalidOperationException("Handle property not found");
+
+            // Get the handle value  
+            return (int)handleProperty.GetValue(mixer);
+        }
+
+        public static string ResolutionToFfmpegSmpFmt(Resolution r)
+        {
+            switch (r)
+            {
+                case Resolution.Float: return "f32le";
+                case Resolution.Short: return "s16le";
+                case Resolution.Byte: return "u8";
+            }
+            throw new ArgumentException($"Resolution {r} invalid");
+        }
+
+        public static int ResolutionToByteSize(Resolution r)
+        {
+            switch (r)
+            {
+                case Resolution.Float: return 4;
+                case Resolution.Short: return 2;
+                case Resolution.Byte: return 1;
+            }
+            throw new ArgumentException($"Resolution {r} invalid");
         }
     }
 }
