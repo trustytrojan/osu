@@ -52,9 +52,11 @@ namespace osu.Game.Overlays.Mods
         [BackgroundDependencyLoader]
         private void load()
         {
+            const float content_width = 300;
+
             Child = new FillFlowContainer
             {
-                Width = 300,
+                Width = content_width,
                 AutoSizeAxes = Axes.Y,
                 Spacing = new Vector2(7),
                 Direction = FillDirection.Vertical,
@@ -107,15 +109,17 @@ namespace osu.Game.Overlays.Mods
                     {
                         Anchor = Anchor.TopCentre,
                         Origin = Anchor.TopCentre,
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
+                        AutoSizeAxes = Axes.Both,
                         Spacing = new Vector2(7),
+                        Direction = FillDirection.Vertical,
                         Children = new Drawable[]
                         {
                             useCurrentModsButton = new ShearedButton
                             {
-                                Anchor = Anchor.TopCentre,
-                                Origin = Anchor.TopCentre,
+                                // todo: for some very odd reason, this needs to be anchored to topright for the fill flow to be correctly sized to the AABB of the sheared button
+                                Anchor = Anchor.TopRight,
+                                Origin = Anchor.TopRight,
+                                Width = content_width,
                                 Text = ModSelectOverlayStrings.UseCurrentMods,
                                 DarkerColour = colours.Blue1,
                                 LighterColour = colours.Blue0,
@@ -124,8 +128,10 @@ namespace osu.Game.Overlays.Mods
                             },
                             saveButton = new ShearedButton
                             {
-                                Anchor = Anchor.TopCentre,
-                                Origin = Anchor.TopCentre,
+                                // todo: for some very odd reason, this needs to be anchored to topright for the fill flow to be correctly sized to the AABB of the sheared button
+                                Anchor = Anchor.TopRight,
+                                Origin = Anchor.TopRight,
+                                Width = content_width,
                                 Text = Resources.Localisation.Web.CommonStrings.ButtonsSave,
                                 DarkerColour = colours.Orange1,
                                 LighterColour = colours.Orange0,

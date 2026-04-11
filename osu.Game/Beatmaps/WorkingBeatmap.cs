@@ -16,6 +16,7 @@ using osu.Framework.Audio.Track;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Logging;
+using osu.Game.Overlays;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.UI;
@@ -119,23 +120,23 @@ namespace osu.Game.Beatmaps
             return track;
         }
 
-        public void PrepareTrackForPreview(bool looping, double offsetFromPreviewPoint = 0)
+        public void PrepareTrackForPreview(bool looping, double? offsetFromPreviewPoint = null)
         {
             Track.Looping = looping;
             Track.RestartPoint = Metadata.PreviewTime;
 
-            if (Track.RestartPoint == -1)
+            if (!Track.IsLoaded)
             {
-                if (!Track.IsLoaded)
-                {
-                    // force length to be populated (https://github.com/ppy/osu-framework/issues/4202)
-                    Track.Seek(Track.CurrentTime);
-                }
-
-                Track.RestartPoint = 0.4f * Track.Length;
+                // force length to be populated (https://github.com/ppy/osu-framework/issues/4202)
+                Track.Seek(Track.CurrentTime);
             }
 
-            Track.RestartPoint += offsetFromPreviewPoint;
+            if (Track.RestartPoint < 0 || Track.RestartPoint > Track.Length)
+                Track.RestartPoint = 0.4f * Track.Length;
+
+            offsetFromPreviewPoint ??= -MusicController.DELAY_BEFORE_FADE;
+
+            Track.RestartPoint = Math.Clamp(Track.RestartPoint + offsetFromPreviewPoint.Value, 0, Track.Length);
         }
 
         /// <summary>
@@ -213,12 +214,12 @@ namespace osu.Game.Beatmaps
                     if (ae.InnerExceptions.FirstOrDefault() is TaskCanceledException)
                         return null;
 
-                    Logger.Error(ae, "Beatmap failed to load");
+                    Logger.Error(ae, $"Beatmap failed to load ({BeatmapInfo})");
                     return null;
                 }
                 catch (Exception e)
                 {
-                    Logger.Error(e, "Beatmap failed to load");
+                    Logger.Error(e, $"Beatmap failed to load ({BeatmapInfo})");
                     return null;
                 }
             }
@@ -264,7 +265,7 @@ namespace osu.Game.Beatmaps
                 using (var cancellationTokenSource = new CancellationTokenSource(10_000))
                 {
                     // don't apply the default timeout when debugger is attached (may be breakpointing / debugging).
-                    return GetPlayableBeatmap(ruleset, mods ?? Array.Empty<Mod>(), Debugger.IsAttached ? new CancellationToken() : cancellationTokenSource.Token);
+                    return GetPlayableBeatmap(ruleset, mods ?? Array.Empty<Mod>(), Debugger.IsAttached ? CancellationToken.None : cancellationTokenSource.Token);
                 }
             }
             catch (OperationCanceledException)

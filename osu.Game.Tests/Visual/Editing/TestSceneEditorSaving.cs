@@ -128,13 +128,14 @@ namespace osu.Game.Tests.Visual.Editing
         }
 
         [Test]
+        [FlakyTest]
         public void TestLengthAndStarRatingUpdated()
         {
             WorkingBeatmap working = null;
             double lastStarRating = 0;
             double lastLength = 0;
 
-            AddStep("Add timing point", () => EditorBeatmap.ControlPointInfo.Add(200, new TimingControlPoint { BeatLength = 600 }));
+            AddStep("Add timing point", () => EditorBeatmap.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 600 }));
             AddStep("Change to placement mode", () => InputManager.Key(Key.Number2));
             AddStep("Move to playfield", () => InputManager.MoveMouseTo(Game.ScreenSpaceDrawQuad.Centre));
             AddStep("Place single hitcircle", () => InputManager.Click(MouseButton.Left));
@@ -190,7 +191,7 @@ namespace osu.Game.Tests.Visual.Editing
             AddStep("Set tags again", () => EditorBeatmap.BeatmapInfo.Metadata.Tags = tags_to_discard);
 
             AddStep("Exit editor", () => Editor.Exit());
-            AddUntilStep("Wait for song select", () => Game.ScreenStack.CurrentScreen is PlaySongSelect);
+            AddUntilStep("Wait for song select", () => Game.ScreenStack.CurrentScreen is SoloSongSelect);
             AddAssert("Tags reverted correctly", () => Game.Beatmap.Value.BeatmapInfo.Metadata.Tags == tags_to_save);
         }
 

@@ -106,7 +106,7 @@ namespace osu.Game.Overlays.BeatmapSet.Scores
 
             var ruleset = scores.First().Ruleset.CreateInstance();
 
-            foreach (var resultGroup in ruleset.GetHitResults().GroupBy(r => r.displayName))
+            foreach (var resultGroup in ruleset.GetHitResultsForDisplay().GroupBy(r => r.displayName))
             {
                 if (!resultGroup.Any(r => allScoreStatistics.Contains(r.result)))
                     continue;
@@ -200,6 +200,8 @@ namespace osu.Game.Overlays.BeatmapSet.Scores
                 content.Add(new StatisticText(count, maxCount, @"N0") { Colour = count == 0 ? Color4.Gray : Color4.White });
             }
 
+            // TODO: all this should be using the same sort of logic as `DrawableProfileScore` is, but that's not easily done
+            // unless the ENTIRE overlay can be weaned off of `ScoreInfo` and use `SoloScoreInfo` instead
             if (showPerformancePoints)
             {
                 if (!score.Ranked)

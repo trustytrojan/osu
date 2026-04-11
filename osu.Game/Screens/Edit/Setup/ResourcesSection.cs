@@ -10,10 +10,11 @@ using osu.Framework.Graphics;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Game.Beatmaps;
-using osu.Game.Overlays;
 using osu.Game.Localisation;
 using osu.Game.Models;
+using osu.Game.Overlays;
 using osu.Game.Screens.Backgrounds;
+using osu.Game.Screens.Edit.Components;
 using osu.Game.Utils;
 
 namespace osu.Game.Screens.Edit.Setup
@@ -22,6 +23,8 @@ namespace osu.Game.Screens.Edit.Setup
     {
         private FormBeatmapFileSelector audioTrackChooser = null!;
         private FormBeatmapFileSelector backgroundChooser = null!;
+
+        private readonly Bindable<EditorBeatmapSkin.SampleSet?> currentSampleSet = new Bindable<EditorBeatmapSkin.SampleSet?>();
 
         public override LocalisableString Title => EditorSetupStrings.ResourcesHeader;
 
@@ -65,6 +68,27 @@ namespace osu.Game.Screens.Edit.Setup
                     Caption = EditorSetupStrings.AudioTrack,
                     PlaceholderText = EditorSetupStrings.ClickToSelectTrack,
                 },
+                new FormSampleSetChooser
+                {
+                    Current = { BindTarget = currentSampleSet },
+                },
+                new FormSampleSet
+                {
+                    Current = { BindTarget = currentSampleSet },
+                    SampleAddRequested = (file, targetName) =>
+                    {
+                        string actualFilename = string.Concat(targetName, file.Extension);
+                        using var stream = file.OpenRead();
+                        beatmaps.AddFile(working.Value.BeatmapSetInfo, stream, actualFilename);
+                        return actualFilename;
+                    },
+                    SampleRemoveRequested = filename =>
+                    {
+                        var file = working.Value.BeatmapSetInfo.GetFile(filename);
+                        if (file != null)
+                            beatmaps.DeleteFile(working.Value.BeatmapSetInfo, file);
+                    }
+                },
             };
 
             backgroundChooser.PreviewContainer.Add(headerBackground);
@@ -89,7 +113,7 @@ namespace osu.Game.Screens.Edit.Setup
                 (metadata, name) => metadata.BackgroundFile = name);
 
             headerBackground.UpdateBackground();
-            editor?.ApplyToBackground(bg => ((EditorBackgroundScreen)bg).RefreshBackground());
+            editor?.ApplyToBackground(bg => ((EditorBackgroundScreen)bg).RefreshBackgroundAsync());
             return true;
         }
 
@@ -98,11 +122,16 @@ namespace osu.Game.Screens.Edit.Setup
             if (!source.Exists)
                 return false;
 
-            TagLib.File? tagSource;
+            string artist;
+            string title;
 
             try
             {
-                tagSource = TagLib.File.Create(source.FullName);
+                using (var tagSource = TagLibUtils.GetTagLibFile(source.FullName))
+                {
+                    artist = tagSource.Tag.JoinedAlbumArtists ?? tagSource.Tag.JoinedPerformers;
+                    title = tagSource.Tag.Title;
+                }
             }
             catch (Exception e)
             {
@@ -116,15 +145,11 @@ namespace osu.Game.Screens.Edit.Setup
                 {
                     metadata.AudioFile = name;
 
-                    string artist = tagSource.Tag.JoinedAlbumArtists;
-
                     if (!string.IsNullOrWhiteSpace(artist))
                     {
                         metadata.ArtistUnicode = artist;
                         metadata.Artist = MetadataUtils.StripNonRomanisedCharacters(metadata.ArtistUnicode);
                     }
-
-                    string title = tagSource.Tag.Title;
 
                     if (!string.IsNullOrEmpty(title))
                     {
@@ -192,7 +217,7 @@ namespace osu.Game.Screens.Edit.Setup
                     // note that this triggers a full save flow, including triggering a difficulty calculation.
                     // this is not a cheap operation and should be reconsidered in the future.
                     var beatmapWorking = beatmaps.GetWorkingBeatmap(b);
-                    beatmaps.Save(b, beatmapWorking.Beatmap, beatmapWorking.GetSkin());
+                    beatmaps.Save(b, beatmapWorking.GetPlayableBeatmap(b.Ruleset), beatmapWorking.GetSkin());
                 }
             }
 

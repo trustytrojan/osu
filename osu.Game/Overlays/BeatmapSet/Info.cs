@@ -2,7 +2,6 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -10,9 +9,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Beatmaps;
-using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
-using osu.Game.Graphics.Sprites;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays.BeatmapListing;
 
@@ -38,7 +35,6 @@ namespace osu.Game.Overlays.BeatmapSet
             MetadataSection source, mapperTags;
             MetadataSectionGenre genre;
             MetadataSectionLanguage language;
-            OsuSpriteText notRankedPlaceholder;
 
             RelativeSizeAxes = Axes.X;
             Height = base_height;
@@ -109,14 +105,6 @@ namespace osu.Game.Overlays.BeatmapSet
                                     RelativeSizeAxes = Axes.Both,
                                     Padding = new MarginPadding { Top = 20, Horizontal = 15 },
                                 },
-                                notRankedPlaceholder = new OsuSpriteText
-                                {
-                                    Anchor = Anchor.Centre,
-                                    Origin = Anchor.Centre,
-                                    Alpha = 0,
-                                    Text = "This beatmap is not ranked",
-                                    Font = OsuFont.GetFont(size: 12)
-                                },
                             },
                         },
                     },
@@ -131,9 +119,6 @@ namespace osu.Game.Overlays.BeatmapSet
                 updateUserTags();
                 genre.Metadata = b.NewValue?.Genre ?? new BeatmapSetOnlineGenre { Id = (int)SearchGenre.Unspecified };
                 language.Metadata = b.NewValue?.Language ?? new BeatmapSetOnlineLanguage { Id = (int)SearchLanguage.Unspecified };
-                bool setHasLeaderboard = b.NewValue?.Status > 0;
-                successRate.Alpha = setHasLeaderboard ? 1 : 0;
-                notRankedPlaceholder.Alpha = setHasLeaderboard ? 0 : 1;
             });
             Beatmap.BindValueChanged(b =>
             {
@@ -144,21 +129,7 @@ namespace osu.Game.Overlays.BeatmapSet
 
         private void updateUserTags()
         {
-            if (Beatmap.Value?.TopTags == null || Beatmap.Value.TopTags.Length == 0 || BeatmapSet.Value?.RelatedTags == null)
-            {
-                userTags.Metadata = null;
-                return;
-            }
-
-            var tagsById = BeatmapSet.Value.RelatedTags.ToDictionary(t => t.Id);
-            userTags.Metadata = Beatmap.Value.TopTags
-                                       .Select(t => (topTag: t, relatedTag: tagsById.GetValueOrDefault(t.TagId)))
-                                       .Where(t => t.relatedTag != null)
-                                       // see https://github.com/ppy/osu-web/blob/bb3bd2e7c6f84f26066df5ea20a81c77ec9bb60a/resources/js/beatmapsets-show/controller.ts#L103-L106 for sort criteria
-                                       .OrderByDescending(t => t.topTag.VoteCount)
-                                       .ThenBy(t => t.relatedTag!.Name)
-                                       .Select(t => t.relatedTag!.Name)
-                                       .ToArray();
+            userTags.Metadata = Beatmap.Value?.GetTopUserTags().Select(t => t.Tag.Name).ToArray();
         }
 
         [BackgroundDependencyLoader]

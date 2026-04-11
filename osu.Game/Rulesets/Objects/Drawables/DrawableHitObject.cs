@@ -707,9 +707,6 @@ namespace osu.Game.Rulesets.Objects.Drawables
 
         protected void ApplyResult(HitResult type) => ApplyResult(static (result, state) => result.Type = state, type);
 
-        [Obsolete("Use overload with state, preferrably with static delegates to avoid allocation overhead.")] // Can be removed 2024-07-26
-        protected void ApplyResult(Action<JudgementResult> application) => ApplyResult((r, _) => application(r), this);
-
         protected void ApplyResult(Action<JudgementResult, DrawableHitObject> application) => ApplyResult(application, this);
 
         /// <summary>
@@ -784,7 +781,7 @@ namespace osu.Game.Rulesets.Objects.Drawables
         /// Creates the <see cref="JudgementResult"/> that represents the scoring result for this <see cref="DrawableHitObject"/>.
         /// </summary>
         /// <param name="judgement">The <see cref="Judgement"/> that provides the scoring information.</param>
-        protected virtual JudgementResult CreateResult(Judgement judgement) => new JudgementResult(HitObject, judgement);
+        protected internal virtual JudgementResult CreateResult(Judgement judgement) => new JudgementResult(HitObject, judgement);
 
         private void ensureEntryHasResult()
         {
