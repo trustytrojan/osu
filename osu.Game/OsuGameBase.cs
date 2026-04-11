@@ -32,7 +32,6 @@ using osu.Framework.IO.Stores;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
-using osu.Framework.Screens;
 using osu.Framework.Timing;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
@@ -65,6 +64,8 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Skinning;
 using osu.Game.Utils;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using RuntimeInfo = osu.Framework.RuntimeInfo;
 
 namespace osu.Game
@@ -798,9 +799,115 @@ namespace osu.Game
         IClock IBeatSyncProvider.Clock => beatmapClock;
         ChannelAmplitudes IHasAmplitudes.CurrentAmplitudes => Beatmap.Value.TrackLoaded ? Beatmap.Value.Track.CurrentAmplitudes : ChannelAmplitudes.Empty;
 
-        protected ScreenStack CaptureStack = new() { Size = new() { X = 1280, Y = 720 } };
-        protected ManualClock CaptureTimeSource;
+        public class MyClock : FramedClock, IAdjustableClock
+        {
+            double IAdjustableClock.Rate { get => Rate; set => throw new NotImplementedException(); }
+
+            public MyClock(IClock source)
+                : base(source, false)
+            {
+            }
+
+            public void Reset()
+            {
+            }
+
+            public void ResetSpeedAdjustments()
+            {
+            }
+
+            public bool Seek(double position)
+            {
+                return true;
+            }
+
+            public void Start()
+            {
+            }
+
+            public void Stop()
+            {
+            }
+        }
+
+        protected ManualClock CaptureTimeSource = new()
+        {
+            CurrentTime = 0,
+            IsRunning = true,
+            Rate = 1,
+        };
         public IFrameBasedClock CaptureClock;
-        protected bool CaptureStackInitialized = false;
+        public DrawableScreenshotter CaptureScreenshotter = null;
+        private FFmpegCliProcess ffmpeg;
+        public bool Recording = false;
+        private List<Size> sizeHistory = [];
+
+        private bool currentlyCapturing = false;
+
+        protected void StartRecording(Drawable drawable)
+        {
+            CaptureTimeSource.CurrentTime = 0;
+            CaptureClock = new MyClock(CaptureTimeSource);
+            Recording = true;
+
+            var size = drawable.DrawSize;
+
+            if (size.X < 1000 || size.Y < 500)
+                throw new ArgumentException($"Draw size {size} too small!");
+
+            ffmpeg?.Close();
+            ffmpeg = null;
+            currentlyCapturing = false;
+
+            CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
+            base.Content.Add(CaptureScreenshotter);
+        }
+
+        public void StopRecording()
+        {
+            Recording = false;
+            ffmpeg?.Close();
+            ffmpeg = null;
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+            if (!Recording || currentlyCapturing)
+                return;
+            const double fps = 60;
+            const double frame_time_ms = 1000.0 / fps;
+            CaptureTimeSource.CurrentTime += frame_time_ms;
+            CaptureScreenshotter.RequestCapture();
+            currentlyCapturing = true;
+        }
+
+        protected void OnImageReceived(Image<Rgba32> image)
+        {
+            if (!currentlyCapturing)
+                return;
+            currentlyCapturing = false;
+
+            if (!Recording || image == null)
+                return;
+
+            if (ffmpeg == null)
+            {
+                if (sizeHistory.Count == 10 && sizeHistory.All(image.Size.Equals))
+                {
+                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60);
+                }
+                else
+                {
+                    if (sizeHistory.Count >= 10)
+                        sizeHistory.RemoveAt(0);
+                    sizeHistory.Add(image.Size);
+                }
+                return;
+            }
+
+            // using (image)
+            ffmpeg.WriteFrame(image);
+        }
     }
 }

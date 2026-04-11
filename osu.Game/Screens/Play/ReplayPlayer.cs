@@ -60,6 +60,8 @@ namespace osu.Game.Screens.Play
         [Resolved]
         private GameHost host { get; set; } = null!;
 
+        private OsuGameBase game = null!;
+
         protected override bool CheckModsAllowFailure()
         {
             // autoplay should be able to fail if the beatmap is not humanly beatable
@@ -96,7 +98,7 @@ namespace osu.Game.Screens.Play
         public void AddSettings(PlayerSettingsGroup settings) => Schedule(() => ReplayOverlay.Settings.Add(settings));
 
         [BackgroundDependencyLoader]
-        private void load(OsuConfigManager config)
+        private void load(OsuConfigManager config, OsuGameBase game)
         {
             if (!LoadedBeatmapSuccessfully)
                 return;
@@ -156,6 +158,8 @@ namespace osu.Game.Screens.Play
                 frameRenderCancellation = new CancellationTokenSource();
                 frameRenderTask = Task.Run(() => renderFrames(frameRenderCancellation.Token), frameRenderCancellation.Token);
             }
+
+            this.game = game;
         }
 
         private async Task renderFrames(CancellationToken cancellationToken)
@@ -274,6 +278,8 @@ namespace osu.Game.Screens.Play
             frameRenderCancellation = null;
 
             Beatmap.Value.Track.RemoveAdjustment(AdjustableProperty.Volume, renderMuteAdjustment);
+
+            game.StopRecording();
 
             return base.OnExiting(e);
         }

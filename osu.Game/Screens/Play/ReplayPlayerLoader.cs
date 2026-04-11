@@ -10,6 +10,7 @@ namespace osu.Game.Screens.Play
     public partial class ReplayPlayerLoader : PlayerLoader
     {
         public readonly ScoreInfo Score;
+        public override bool DisallowExternalBeatmapRulesetChanges => false;
 
         public ReplayPlayerLoader(Score score)
             : base(() => new ReplayPlayer(score))

@@ -167,7 +167,7 @@ namespace osu.Game.Screens.Play
 
         public bool LoadedBeatmapSuccessfully => DrawableRuleset?.Objects.Any() == true;
 
-        protected GameplayClockContainer GameplayClockContainer { get; private set; }
+        public GameplayClockContainer GameplayClockContainer { get; private set; }
 
         public DimmableStoryboard DimmableStoryboard { get; private set; }
 
@@ -273,7 +273,6 @@ namespace osu.Game.Screens.Play
             {
                 GameplayClockContainer = CreateGameplayClockContainer(Beatmap.Value, DrawableRuleset.GameplayStartTime),
             };
-            GameplayClockContainer.ChangeSource(game.CaptureClock);
 
             AddInternal(screenSuspension = new ScreenSuspensionHandler(GameplayClockContainer));
 

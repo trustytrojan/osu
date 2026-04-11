@@ -32,7 +32,6 @@ using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Framework.Threading;
-using osu.Framework.Timing;
 using osu.Game.Beatmaps;
 using osu.Game.Collections;
 using osu.Game.Configuration;
@@ -80,6 +79,7 @@ using osu.Game.Utils;
 using osuTK;
 using osuTK.Graphics;
 using Sentry;
+using SQLitePCL;
 using IntroScreen = osu.Game.Screens.Menu.IntroScreen;
 using MatchType = osu.Game.Online.Rooms.MatchType;
 
@@ -817,37 +817,6 @@ namespace osu.Game
             // but `PerformFromScreen` doesn't understand nested stacks.
         }
 
-        public class MyClock : FramedClock, IAdjustableClock
-        {
-            double IAdjustableClock.Rate { get => Rate; set => throw new NotImplementedException(); }
-
-            public MyClock(IClock source)
-                : base(source, false)
-            {
-            }
-
-            public void Reset()
-            {
-            }
-
-            public void ResetSpeedAdjustments()
-            {
-            }
-
-            public bool Seek(double position)
-            {
-                return true;
-            }
-
-            public void Start()
-            {
-            }
-
-            public void Stop()
-            {
-            }
-        }
-
         /// <summary>
         /// Present a score's replay immediately.
         /// The user should have already requested this interactively.
@@ -931,34 +900,22 @@ namespace osu.Game
                 switch (presentType)
                 {
                     case ScorePresentType.Gameplay:
-                        // screen.Push(new ReplayPlayerLoader(databasedScore));
-                        if (!CaptureStackInitialized)
-                        {
-                            CaptureTimeSource = new ManualClock
-                            {
-                                CurrentTime = 0,
-                                IsRunning = true,
-                                Rate = 1,
-                            };
-                            CaptureClock = new MyClock(CaptureTimeSource);
-                            CaptureStack.Clock = CaptureClock;
-                            CaptureStackInitialized = true;
-                            new Thread(() =>
-                            {
-                                // Feels like 0.5x speed when you watch a replay! We can control time!
-                                while (true)
-                                {
-                                    Thread.Sleep(33);
-                                    CaptureTimeSource.CurrentTime += 16;
-                                }
-                            })
-                            {
-                                IsBackground = true
-                            }.Start();
-                        }
                         var rpl = new ReplayPlayerLoader(databasedScore);
-                        // captureStack.Push(rpl);
                         screen.Push(rpl);
+                        // Only start recording when the ReplayPlayerLoader loads the ReplayPlayer
+                        Action waitForNonNullPlayerThenStart = null;
+                        Schedule(waitForNonNullPlayerThenStart = () =>
+                        {
+                            var player = rpl.CurrentPlayer;
+                            if (player == null || !player.IsCurrentScreen())
+                                Schedule(waitForNonNullPlayerThenStart);
+                            else
+                            {
+                                StartRecording(player);
+                                player.GameplayClockContainer.ChangeSource(CaptureClock);
+                                player.Clock = CaptureClock;
+                            }
+                        });
                         break;
 
                     case ScorePresentType.Results:
