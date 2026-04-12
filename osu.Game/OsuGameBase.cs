@@ -848,35 +848,38 @@ namespace osu.Game
         public DrawableScreenshotter CaptureScreenshotter = null;
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
-        private List<Size> sizeHistory = [];
-        private const int size_history_limit = 1;
-        private string audioFilePath;
-        private int samplerate, channels;
+        private const int fps = 60;
+
+        // Audio recording stuff
+        // Temporarily commented out to focus on video performance first
+        /*private int samplerate, channels;
         private Resolution resolution;
         private int sampleMixerHandle;
-        private byte[] audioBuf = null;
+        private byte[] audioBuf = null;*/
 
+        // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
 
-        protected void StartRecording(Drawable drawable, string audioFilePath)
+        protected void StartRecording(Drawable drawable)
         {
-            this.audioFilePath = audioFilePath;
             CaptureTimeSource.CurrentTime = 0;
             CaptureClock = new MyClock(CaptureTimeSource);
             Recording = true;
-
-            var size = drawable.DrawSize;
-
-            if (size.X < 1000 || size.Y < 500)
-                throw new ArgumentException($"Draw size {size} too small!");
 
             ffmpeg?.Dispose();
             ffmpeg = null;
             currentlyCapturing = false;
 
+            // Finish transforms of the ENTIRE scene graph
+            var current = drawable;
+            while (current != null)
+            {
+                current.FinishTransforms(propagateChildren: true);
+                current = current.Parent;
+            }
+
             // Get audio channel info
-            sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
-            Logger.Log($"StartRecording: sampleMixerHandle: {sampleMixerHandle}");
+            /*sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
             if (Bass.ChannelGetInfo(sampleMixerHandle, out ChannelInfo info))
             {
                 samplerate = info.Frequency;
@@ -884,9 +887,7 @@ namespace osu.Game
                 resolution = info.Resolution;
             }
             else
-            {
-                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
-            }
+                throw new InvalidOperationException($"BASS error: {Bass.LastError}");*/
 
             CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
@@ -897,6 +898,7 @@ namespace osu.Game
             Recording = false;
             ffmpeg?.Dispose();
             ffmpeg = null;
+            base.Content.Remove(CaptureScreenshotter, true);
         }
 
         protected override void Update()
@@ -904,7 +906,6 @@ namespace osu.Game
             base.Update();
             if (!Recording || currentlyCapturing)
                 return;
-            const double fps = 60;
             const double frame_time_ms = 1000.0 / fps;
             CaptureTimeSource.CurrentTime += frame_time_ms;
             CaptureScreenshotter.RequestCapture();
@@ -920,29 +921,34 @@ namespace osu.Game
             if (!Recording || image == null)
                 return;
 
+            // We wait for the first image because by this point all
+            // transforms should have been finished by StartRecording().
             if (ffmpeg == null)
             {
-                if (sizeHistory.Count == size_history_limit && sizeHistory.All(image.Size.Equals))
-                {
-                    // ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, audioFilePath: audioFilePath);
-                    ffmpeg = new FFmpegCliProcess("out.mp4", new() { X = image.Width, Y = image.Height }, 60, samplerate, ResolutionToFfmpegSmpFmt(resolution), channels);
-                    _ = ffmpeg.Start();
-                }
-                else
-                {
-                    if (sizeHistory.Count >= size_history_limit)
-                        sizeHistory.RemoveAt(0);
-                    sizeHistory.Add(image.Size);
-                }
-                return;
+                // Video-only constructor
+                ffmpeg = new FFmpegCliProcess(
+                    "out.mp4",
+                    new() { X = image.Width, Y = image.Height },
+                    fps
+                );
+                // Video + audio constructor & Start() which opens the audio pipe
+                /*ffmpeg = new FFmpegCliProcess(
+                    "out.mp4",
+                    new() { X = image.Width, Y = image.Height },
+                    fps,
+                    samplerate,
+                    ResolutionToFfmpegSmpFmt(resolution),
+                    channels
+                );
+                _ = ffmpeg.Start();*/
             }
 
             using (image)
                 ffmpeg.WriteFrame(image);
 
-            if (audioBuf == null)
+            /*if (audioBuf == null)
             {
-                int afpvf = samplerate / 60;
+                int afpvf = samplerate / fps;
                 int samples = afpvf * channels;
                 int sampleSize = ResolutionToByteSize(resolution);
                 audioBuf = new byte[samples * sampleSize];
@@ -952,7 +958,7 @@ namespace osu.Game
             if (bytesRead == -1)
                 throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
-            ffmpeg.WriteAudio(audioBuf.AsSpan().AsBytes().Slice(0, bytesRead));
+            ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));*/
         }
 
         public static int GetMixerHandle(AudioMixer mixer)

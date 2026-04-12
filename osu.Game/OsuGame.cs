@@ -912,11 +912,7 @@ namespace osu.Game
                                 Schedule(waitForNonNullPlayerThenStart);
                             else
                             {
-                                var workingBeatmap = Beatmap.Value;
-                                string audioFilename = workingBeatmap.Metadata.AudioFile;
-                                string audioPath = workingBeatmap.BeatmapSetInfo.GetPathForFile(audioFilename);
-                                string absoluteAudioPath = Host.Storage.GetStorageForDirectory("files").GetFullPath(audioPath);
-                                StartRecording(stack, absoluteAudioPath);
+                                StartRecording(stack);
                                 player.GameplayClockContainer.ChangeSource(CaptureClock);
                                 player.Clock = CaptureClock;
                             }
