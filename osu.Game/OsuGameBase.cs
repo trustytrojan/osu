@@ -838,13 +838,20 @@ namespace osu.Game
             }
         }
 
-        protected ManualClock CaptureTimeSource = new()
+        protected ManualClock ReplayTimeSource = new()
         {
             CurrentTime = 0,
             IsRunning = true,
             Rate = 1,
         };
-        public IFrameBasedClock CaptureClock;
+        protected ManualClock ScreenStackTimeSource = new()
+        {
+            CurrentTime = 0,
+            IsRunning = true,
+            Rate = 1,
+        };
+        public IFrameBasedClock ReplayClock = null;
+        public IFrameBasedClock ScreenStackClock = null;
         public DrawableScreenshotter CaptureScreenshotter = null;
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
@@ -862,20 +869,21 @@ namespace osu.Game
 
         protected void StartRecording(Drawable drawable)
         {
-            CaptureTimeSource.CurrentTime = 0;
-            CaptureClock = new MyClock(CaptureTimeSource);
+            ReplayTimeSource.CurrentTime = 0;
+            ScreenStackTimeSource.CurrentTime = 0;
             Recording = true;
 
             ffmpeg?.Dispose();
             ffmpeg = null;
             currentlyCapturing = false;
 
-            // Finish transforms of the ENTIRE scene graph
-            var current = drawable;
-            while (current != null)
-            {
-                current.FinishTransforms(propagateChildren: true);
-                current = current.Parent;
+            { // Finish transforms of the ENTIRE scene graph
+                var current = drawable;
+                while (current != null)
+                {
+                    current.FinishTransforms(propagateChildren: true);
+                    current = current.Parent;
+                }
             }
 
             // Get audio channel info
@@ -896,6 +904,8 @@ namespace osu.Game
         public void StopRecording()
         {
             Recording = false;
+            ReplayClock = null;
+            ScreenStackClock = null;
             ffmpeg?.Dispose();
             ffmpeg = null;
             base.Content.Remove(CaptureScreenshotter, true);
@@ -907,7 +917,10 @@ namespace osu.Game
             if (!Recording || currentlyCapturing)
                 return;
             const double frame_time_ms = 1000.0 / fps;
-            CaptureTimeSource.CurrentTime += frame_time_ms;
+            if (ReplayClock != null)
+                ReplayTimeSource.CurrentTime += frame_time_ms;
+            if (ScreenStackClock != null)
+                ScreenStackTimeSource.CurrentTime += frame_time_ms;
             CaptureScreenshotter.RequestCapture();
             currentlyCapturing = true;
         }

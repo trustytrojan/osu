@@ -901,9 +901,27 @@ namespace osu.Game
                 {
                     case ScorePresentType.Gameplay:
                         var stack = ScreenExtensions.getStack(screen);
+
+                        // Programatically changing the UI is just impossible...
+                        if (Toolbar.State.Value == Visibility.Visible)
+                        {
+                            Notifications.Post(new SimpleNotification()
+                            {
+                                Text = "Toolbar must be hidden first!"
+                            });
+                            return;
+                        }
+
                         var rpl = new ReplayPlayerLoader(databasedScore);
                         stack.Push(rpl);
-                        // Only start recording when the ReplayPlayerLoader loads the ReplayPlayer
+
+                        // Record the stack now so we get the loading screen too!
+                        // This is purely optional. To revert to only recording the player,
+                        // move the StartRecording() call back inside the lambda below.
+                        StartRecording(stack);
+                        stack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
+
+                        // Only set the replay clock when the ReplayPlayer has loaded
                         Action waitForNonNullPlayerThenStart = null;
                         Schedule(waitForNonNullPlayerThenStart = () =>
                         {
@@ -911,11 +929,7 @@ namespace osu.Game
                             if (player == null || !player.IsCurrentScreen())
                                 Schedule(waitForNonNullPlayerThenStart);
                             else
-                            {
-                                StartRecording(stack);
-                                player.GameplayClockContainer.ChangeSource(CaptureClock);
-                                player.Clock = CaptureClock;
-                            }
+                                player.GameplayClockContainer.ChangeSource(ReplayClock = new MyClock(ReplayTimeSource));
                         });
                         break;
 
