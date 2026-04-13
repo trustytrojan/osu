@@ -962,7 +962,7 @@ namespace osu.Game
             if (replayTimeStarted)
             {
                 replayTime += frame_time_ms;
-                player.Seek(replayTime);
+                player.GameplayClockContainer.SeekNoPrint(replayTime);
             }
             if (ScreenStackClock != null)
                 ScreenStackTimeSource.CurrentTime += frame_time_ms;

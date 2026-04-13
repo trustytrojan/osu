@@ -112,6 +112,12 @@ namespace osu.Game.Screens.Play
             OnSeek?.Invoke();
         }
 
+        public void SeekNoPrint(double time)
+        {
+            GameplayClock.Seek(time);
+            OnSeek?.Invoke();
+        }
+
         /// <summary>
         /// Stops gameplay and marks paused state.
         /// </summary>
