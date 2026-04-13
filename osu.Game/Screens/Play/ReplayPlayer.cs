@@ -232,6 +232,7 @@ namespace osu.Game.Screens.Play
         public override void OnSuspending(ScreenTransitionEvent e)
         {
             stopAllAudioEffects();
+            game.StopRecording();
             base.OnSuspending(e);
         }
 
