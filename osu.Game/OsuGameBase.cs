@@ -854,10 +854,10 @@ namespace osu.Game
         private const int fps = 60;
 
         // Audio recording stuff
-        /*private int samplerate, channels;
+        private int samplerate, channels;
         private Resolution resolution;
         private int sampleMixerHandle;
-        private byte[] audioBuf = null;*/
+        private byte[] audioBuf = null;
 
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
@@ -886,7 +886,7 @@ namespace osu.Game
             }
 
             // Get audio channel info
-            /*sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
+            sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
             if (Bass.ChannelGetInfo(sampleMixerHandle, out ChannelInfo info))
             {
                 samplerate = info.Frequency;
@@ -894,7 +894,7 @@ namespace osu.Game
                 resolution = info.Resolution;
             }
             else
-                throw new InvalidOperationException($"BASS error: {Bass.LastError}");*/
+                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
             CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
@@ -942,19 +942,19 @@ namespace osu.Game
                     videoSize: new() { X = image.Width, Y = image.Height },
                     framerate: fps
                 );
-                /*ffmpeg.EnableAudio(
+                ffmpeg.EnableAudio(
                     sampleRate: samplerate,
                     sampleFormat: ResolutionToFfmpegSmpFmt(resolution),
                     channels: channels
-                );*/
-                _ = ffmpeg.Start();
+                );
+                ffmpeg.Start();
             }
 
             // Record video
             using (image)
                 ffmpeg.WriteFrame(image);
 
-            /*{ // Record audio
+            { // Record audio
                 if (audioBuf == null)
                 {
                     int afpvf = samplerate / fps;
@@ -968,7 +968,7 @@ namespace osu.Game
                     throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
                 ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));
-            }*/
+            }
         }
 
         public static int GetMixerHandle(AudioMixer mixer)
