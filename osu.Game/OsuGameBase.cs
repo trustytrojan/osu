@@ -869,6 +869,10 @@ namespace osu.Game
 
         protected void StartRecording(Drawable drawable)
         {
+            // This allows for a 10-fold speed increase over image.CreateReadOnlyPixelSpan()!
+            // See FFmpegCliProcess.WriteFrame().
+            SixLabors.ImageSharp.Configuration.Default.PreferContiguousImageBuffers = true;
+
             ReplayTimeSource.CurrentTime = 0;
             ScreenStackTimeSource.CurrentTime = 0;
             Recording = true;
