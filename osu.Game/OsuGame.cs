@@ -899,7 +899,7 @@ namespace osu.Game
 
                 switch (presentType)
                 {
-                    case ScorePresentType.Gameplay:
+                    case ScorePresentType.Render:
                         // Programatically changing the UI is just impossible...
                         if (Toolbar.State.Value == Visibility.Visible)
                         {
@@ -928,7 +928,6 @@ namespace osu.Game
                         // This is purely optional. To revert to only recording the player,
                         // move the StartRecording() call back inside the lambda below.
                         StartRecording(stack);
-                        stack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
 
                         // Only set the replay clock when the ReplayPlayer has loaded
                         Action waitForNonNullPlayerThenStart = null;
@@ -938,8 +937,12 @@ namespace osu.Game
                             if (player == null || !player.IsCurrentScreen())
                                 Schedule(waitForNonNullPlayerThenStart);
                             else
-                                player.GameplayClockContainer.ChangeSource(ReplayClock = new MyClock(ReplayTimeSource));
+                                StartReplayTime((ReplayPlayer)player);
                         });
+                        break;
+
+                    case ScorePresentType.Gameplay:
+                        screen.Push(new ReplayPlayerLoader(databasedScore));
                         break;
 
                     case ScorePresentType.Results:

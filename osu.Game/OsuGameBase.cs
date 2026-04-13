@@ -38,6 +38,7 @@ using osu.Framework.IO.Stores;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
 using osu.Framework.Platform;
+using osu.Framework.Screens;
 using osu.Framework.Timing;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
@@ -68,6 +69,7 @@ using osu.Game.Resources;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
+using osu.Game.Screens.Play;
 using osu.Game.Skinning;
 using osu.Game.Utils;
 using SixLabors.ImageSharp;
@@ -836,24 +838,23 @@ namespace osu.Game
             }
         }
 
-        protected ManualClock ReplayTimeSource = new()
-        {
-            CurrentTime = 0,
-            IsRunning = true,
-            Rate = 1,
-        };
+        private double replayTime = 0;
+        private bool replayTimeStarted = false;
+        private ReplayPlayer player;
+
         protected ManualClock ScreenStackTimeSource = new()
         {
             CurrentTime = 0,
             IsRunning = true,
             Rate = 1,
         };
-        public IFrameBasedClock ReplayClock = null;
         public IFrameBasedClock ScreenStackClock = null;
         public DrawableScreenshotter CaptureScreenshotter = null;
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
         private const int fps = 60;
+        private ScreenStack stack;
+        private IFrameBasedClock originalStackClock;
 
         // Audio recording stuff
         private const int samplerate = 44100;
@@ -865,13 +866,22 @@ namespace osu.Game
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
 
-        protected void StartRecording(Drawable drawable)
+        // We just count with a double, because Player.GameplayClockContainer actually controls
+        // the beatmap's Track... so all we need to do is Seek() to our simulated time!
+        protected void StartReplayTime(ReplayPlayer player)
+        {
+            replayTimeStarted = true;
+            this.player = player;
+        }
+
+        protected void StartRecording(ScreenStack stack)
         {
             // This allows for a 10-fold speed increase over image.CreateReadOnlyPixelSpan()!
             // See FFmpegCliProcess.WriteFrame().
             SixLabors.ImageSharp.Configuration.Default.PreferContiguousImageBuffers = true;
 
-            ReplayTimeSource.CurrentTime = 0;
+            replayTimeStarted = false;
+            replayTime = 0;
             ScreenStackTimeSource.CurrentTime = 0;
             Recording = true;
 
@@ -879,8 +889,12 @@ namespace osu.Game
             ffmpeg = null;
             currentlyCapturing = false;
 
+            this.stack = stack;
+            originalStackClock = stack.Clock;
+            stack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
+
             { // Finish transforms of the ENTIRE scene graph
-                var current = drawable;
+                Drawable current = stack;
                 while (current != null)
                 {
                     current.FinishTransforms(propagateChildren: true);
@@ -911,14 +925,16 @@ namespace osu.Game
             if (!BassMix.MixerAddChannel(myMixerHandle, GetMixerHandle(Audio.SampleMixer), 0))
                 throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
 
-            CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
+            CaptureScreenshotter = new DrawableScreenshotter(stack, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
         }
 
         public void StopRecording()
         {
+            if (!Recording)
+                return;
             Recording = false;
-            ReplayClock = null;
+            stack.Clock = originalStackClock;
             ScreenStackClock = null;
             ffmpeg?.Dispose();
             ffmpeg = null;
@@ -943,8 +959,11 @@ namespace osu.Game
             if (!Recording || currentlyCapturing)
                 return;
             const double frame_time_ms = 1000.0 / fps;
-            if (ReplayClock != null)
-                ReplayTimeSource.CurrentTime += frame_time_ms;
+            if (replayTimeStarted)
+            {
+                replayTime += frame_time_ms;
+                player.Seek(replayTime);
+            }
             if (ScreenStackClock != null)
                 ScreenStackTimeSource.CurrentTime += frame_time_ms;
             CaptureScreenshotter.RequestCapture();
