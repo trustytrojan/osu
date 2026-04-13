@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using ManagedBass;
+using ManagedBass.Mix;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Mixing;
@@ -20,6 +21,7 @@ using osu.Framework.Bindables;
 using osu.Framework.Configuration;
 using osu.Framework.Development;
 using osu.Framework.Extensions;
+using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Textures;
@@ -854,9 +856,10 @@ namespace osu.Game
         private const int fps = 60;
 
         // Audio recording stuff
-        private int samplerate, channels;
+        private const int samplerate = 44100;
+        private const int channels = 2;
         private Resolution resolution;
-        private int sampleMixerHandle;
+        private int myMixerHandle;
         private byte[] audioBuf = null;
 
         // Lock that waits for the Image before advancing replay time
@@ -885,16 +888,28 @@ namespace osu.Game
                 }
             }
 
-            // Get audio channel info
-            sampleMixerHandle = GetMixerHandle(Audio.SampleMixer);
-            if (Bass.ChannelGetInfo(sampleMixerHandle, out ChannelInfo info))
-            {
-                samplerate = info.Frequency;
-                channels = info.Channels;
+            // Create our own mixer to combine TrackMixer and SampleMixer
+            myMixerHandle = BassMix.CreateMixerStream(samplerate, channels, BassFlags.MixerNonStop | BassFlags.Decode);
+            if (myMixerHandle == 0)
+                throw new InvalidOperationException($"CreateMixerStream: ${Bass.LastError}");
+
+            // Just get the resolution since we're letting BASS choose it
+            if (Bass.ChannelGetInfo(myMixerHandle, out ChannelInfo info))
                 resolution = info.Resolution;
-            }
             else
                 throw new InvalidOperationException($"BASS error: {Bass.LastError}");
+
+            // Remove mixers from global mixer
+            if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.TrackMixer)))
+                throw new InvalidOperationException($"MixerRemoveChannel: ${Bass.LastError}");
+            if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.SampleMixer)))
+                throw new InvalidOperationException($"MixerRemoveChannel: ${Bass.LastError}");
+
+            // Add mixers to my mixer
+            if (!BassMix.MixerAddChannel(myMixerHandle, GetMixerHandle(Audio.TrackMixer), 0))
+                throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
+            if (!BassMix.MixerAddChannel(myMixerHandle, GetMixerHandle(Audio.SampleMixer), 0))
+                throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
 
             CaptureScreenshotter = new DrawableScreenshotter(drawable, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
@@ -908,6 +923,18 @@ namespace osu.Game
             ffmpeg?.Dispose();
             ffmpeg = null;
             base.Content.Remove(CaptureScreenshotter, true);
+
+            // Remove mixers from my mixer
+            if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.TrackMixer)))
+                throw new InvalidOperationException($"MixerRemoveChannel: ${Bass.LastError}");
+            if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.SampleMixer)))
+                throw new InvalidOperationException($"MixerRemoveChannel: ${Bass.LastError}");
+
+            // Add mixers back to global mixer
+            if (!BassMix.MixerAddChannel((int)Audio.GlobalMixerHandle.Value, GetMixerHandle(Audio.TrackMixer), 0))
+                throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
+            if (!BassMix.MixerAddChannel((int)Audio.GlobalMixerHandle.Value, GetMixerHandle(Audio.SampleMixer), 0))
+                throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
         }
 
         protected override void Update()
@@ -963,7 +990,7 @@ namespace osu.Game
                     audioBuf = new byte[samples * sampleSize];
                 }
 
-                int bytesRead = Bass.ChannelGetData(sampleMixerHandle, audioBuf, audioBuf.Length);
+                int bytesRead = Bass.ChannelGetData(myMixerHandle, audioBuf, audioBuf.Length);
                 if (bytesRead == -1)
                     throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
