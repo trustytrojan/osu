@@ -12,12 +12,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using ManagedBass;
-using ManagedBass.Mix;
-using Microsoft.Toolkit.HighPerformance;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Mixing;
-using osu.Framework.Audio.Mixing.Bass;
 using osu.Framework.Audio.Track;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
@@ -69,7 +66,6 @@ using osu.Game.Resources;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
-using osu.Game.Screens.Play;
 using osu.Game.Skinning;
 using osu.Game.Utils;
 using SixLabors.ImageSharp;
@@ -858,7 +854,6 @@ namespace osu.Game
         private const int fps = 60;
 
         // Audio recording stuff
-        // Temporarily commented out to focus on video performance first
         /*private int samplerate, channels;
         private Resolution resolution;
         private int sampleMixerHandle;
@@ -942,40 +937,38 @@ namespace osu.Game
             // transforms should have been finished by StartRecording().
             if (ffmpeg == null)
             {
-                // Video-only constructor
                 ffmpeg = new FFmpegCliProcess(
-                    "out.mp4",
-                    new() { X = image.Width, Y = image.Height },
-                    fps
+                    outputFilePath: "out.mp4",
+                    videoSize: new() { X = image.Width, Y = image.Height },
+                    framerate: fps
                 );
-                // Video + audio constructor & Start() which opens the audio pipe
-                /*ffmpeg = new FFmpegCliProcess(
-                    "out.mp4",
-                    new() { X = image.Width, Y = image.Height },
-                    fps,
-                    samplerate,
-                    ResolutionToFfmpegSmpFmt(resolution),
-                    channels
-                );
-                _ = ffmpeg.Start();*/
+                /*ffmpeg.EnableAudio(
+                    sampleRate: samplerate,
+                    sampleFormat: ResolutionToFfmpegSmpFmt(resolution),
+                    channels: channels
+                );*/
+                _ = ffmpeg.Start();
             }
 
+            // Record video
             using (image)
                 ffmpeg.WriteFrame(image);
 
-            /*if (audioBuf == null)
-            {
-                int afpvf = samplerate / fps;
-                int samples = afpvf * channels;
-                int sampleSize = ResolutionToByteSize(resolution);
-                audioBuf = new byte[samples * sampleSize];
-            }
+            /*{ // Record audio
+                if (audioBuf == null)
+                {
+                    int afpvf = samplerate / fps;
+                    int samples = afpvf * channels;
+                    int sampleSize = ResolutionToByteSize(resolution);
+                    audioBuf = new byte[samples * sampleSize];
+                }
 
-            int bytesRead = Bass.ChannelGetData(sampleMixerHandle, audioBuf, audioBuf.Length);
-            if (bytesRead == -1)
-                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
+                int bytesRead = Bass.ChannelGetData(sampleMixerHandle, audioBuf, audioBuf.Length);
+                if (bytesRead == -1)
+                    throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
-            ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));*/
+                ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));
+            }*/
         }
 
         public static int GetMixerHandle(AudioMixer mixer)

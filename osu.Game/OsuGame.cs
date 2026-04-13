@@ -900,18 +900,27 @@ namespace osu.Game
                 switch (presentType)
                 {
                     case ScorePresentType.Gameplay:
-                        var stack = ScreenExtensions.getStack(screen);
-
                         // Programatically changing the UI is just impossible...
                         if (Toolbar.State.Value == Visibility.Visible)
                         {
-                            Notifications.Post(new SimpleNotification()
+                            Notifications.Post(new SimpleErrorNotification()
                             {
                                 Text = "Toolbar must be hidden first!"
                             });
                             return;
                         }
 
+                        // I refuse to deal with this...
+                        if (frameworkConfig.Get<ExecutionMode>(FrameworkSetting.ExecutionMode) == ExecutionMode.MultiThreaded)
+                        {
+                            Notifications.Post(new SimpleErrorNotification()
+                            {
+                                Text = "Set threading mode to single-threaded first!"
+                            });
+                            return;
+                        }
+
+                        var stack = ScreenExtensions.getStack(screen);
                         var rpl = new ReplayPlayerLoader(databasedScore);
                         stack.Push(rpl);
 
