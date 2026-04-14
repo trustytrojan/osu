@@ -853,6 +853,7 @@ namespace osu.Game
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
         private const int fps = 60;
+        private const double frame_time_ms = 1000.0 / fps;
         private ScreenStack stack;
         private IFrameBasedClock originalStackClock;
 
@@ -956,18 +957,56 @@ namespace osu.Game
         protected override void Update()
         {
             base.Update();
+
             if (!Recording || currentlyCapturing)
                 return;
-            const double frame_time_ms = 1000.0 / fps;
-            if (replayTimeStarted)
-            {
-                replayTime += frame_time_ms;
-                player.GameplayClockContainer.SeekNoPrint(replayTime);
-            }
+
+            // TODO: ffmpeg can be inited here using ScheduleAfterChildren()
+
             if (ScreenStackClock != null)
                 ScreenStackTimeSource.CurrentTime += frame_time_ms;
+
+            // The player was started at the end of OnImageReceived(),
+            // giving BASS a lot of time to render audio, so we can record
+            // once children have updated with the new clock state.
+            ScheduleAfterChildren(() =>
+            {
+                recordAudio();
+
+                if (replayTimeStarted)
+                {
+                    // Stop BEFORE seeking so it STAYS stopped as the image is taken.
+                    player.GameplayClockContainer.Stop();
+                    player.Seek(replayTime);
+                    // We keep the clock stopped as to not take unpredictable images of the screen.
+
+                    // Increment now before we forget.
+                    replayTime += frame_time_ms;
+                }
+            });
+
             CaptureScreenshotter.RequestCapture();
             currentlyCapturing = true;
+        }
+
+        private void recordAudio()
+        {
+            if (ffmpeg == null)
+                return;
+
+            if (audioBuf == null)
+            {
+                int afpvf = samplerate / fps;
+                int samples = afpvf * channels;
+                int sampleSize = ResolutionToByteSize(resolution);
+                audioBuf = new byte[samples * sampleSize];
+            }
+
+            int bytesRead = Bass.ChannelGetData(myMixerHandle, audioBuf, audioBuf.Length);
+            if (bytesRead == -1)
+                throw new InvalidOperationException($"BASS error: {Bass.LastError}");
+
+            ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));
         }
 
         protected void OnImageReceived(Image<Rgba32> image)
@@ -996,24 +1035,14 @@ namespace osu.Game
                 ffmpeg.Start();
             }
 
-            // Record video
-            using (image)
-                ffmpeg.WriteFrame(image);
+            // Don't use `using` as the FFmpegCliProcess class now queues images for a separate thread to handle.
+            // This was needed to deal with Windows' very small anonymous pipe buffers causing deadlocks.
+            ffmpeg.WriteFrame(image);
 
-            { // Record audio
-                if (audioBuf == null)
-                {
-                    int afpvf = samplerate / fps;
-                    int samples = afpvf * channels;
-                    int sampleSize = ResolutionToByteSize(resolution);
-                    audioBuf = new byte[samples * sampleSize];
-                }
-
-                int bytesRead = Bass.ChannelGetData(myMixerHandle, audioBuf, audioBuf.Length);
-                if (bytesRead == -1)
-                    throw new InvalidOperationException($"BASS error: {Bass.LastError}");
-
-                ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));
+            if (replayTimeStarted)
+            {
+                // Start playing so that on the next update we will have audio to record.
+                player.GameplayClockContainer.Start();
             }
         }
 

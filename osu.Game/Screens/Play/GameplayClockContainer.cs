@@ -105,16 +105,10 @@ namespace osu.Game.Screens.Play
         /// <param name="time">The destination time to seek to.</param>
         public virtual void Seek(double time)
         {
-            Logger.Log($"{nameof(GameplayClockContainer)} seeking to {time}");
+            // Logger.Log($"{nameof(GameplayClockContainer)} seeking to {time}");
 
             GameplayClock.Seek(time);
 
-            OnSeek?.Invoke();
-        }
-
-        public void SeekNoPrint(double time)
-        {
-            GameplayClock.Seek(time);
             OnSeek?.Invoke();
         }
 
@@ -132,13 +126,13 @@ namespace osu.Game.Screens.Play
 
         protected virtual void StartGameplayClock()
         {
-            Logger.Log($"{nameof(GameplayClockContainer)} started via call to {nameof(StartGameplayClock)}");
+            // Logger.Log($"{nameof(GameplayClockContainer)} started via call to {nameof(StartGameplayClock)}");
             GameplayClock.Start();
         }
 
         protected virtual void StopGameplayClock()
         {
-            Logger.Log($"{nameof(GameplayClockContainer)} stopped via call to {nameof(StopGameplayClock)}");
+            // Logger.Log($"{nameof(GameplayClockContainer)} stopped via call to {nameof(StopGameplayClock)}");
             GameplayClock.Stop();
         }
 
