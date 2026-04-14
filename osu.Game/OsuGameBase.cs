@@ -1029,16 +1029,15 @@ namespace osu.Game
             // transforms should have been finished by StartRecording().
             if (ffmpeg == null)
             {
-                ffmpeg = new FFmpegCliProcess(
-                    outputFilePath: "out.mp4",
-                    videoSize: new() { X = image.Width, Y = image.Height },
-                    framerate: fps
-                );
-                ffmpeg.EnableAudio(
-                    sampleRate: samplerate,
-                    sampleFormat: ResolutionToFfmpegSmpFmt(resolution),
-                    channels: channels
-                );
+                ffmpeg = new FFmpegCliProcess
+                {
+                    OutputFilePath = "out.mp4",
+                    VideoSize = new() { X = image.Width, Y = image.Height },
+                    Framerate = fps,
+                    Samplerate = samplerate,
+                    SampleFormat = ResolutionToFfmpegSmpFmt(resolution),
+                    Channels = channels
+                };
                 ffmpeg.Start();
             }
 
