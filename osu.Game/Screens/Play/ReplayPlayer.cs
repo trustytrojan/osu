@@ -231,16 +231,24 @@ namespace osu.Game.Screens.Play
 
         public override void OnSuspending(ScreenTransitionEvent e)
         {
+            // replay-encoder-attempt: Stop the recording only when the user presses Escape
+            if (!ScoreProcessor.HasCompleted.Value)
+                Schedule(game.StopRecording);
+
             stopAllAudioEffects();
-            game.StopRecording();
             base.OnSuspending(e);
         }
 
+        public bool HasCompleted => ScoreProcessor.HasCompleted.Value;
+
         public override bool OnExiting(ScreenExitEvent e)
         {
+            // replay-encoder-attempt: Stop the recording only when the user presses Escape
+            if (!ScoreProcessor.HasCompleted.Value)
+                Schedule(game.StopRecording);
+
             // safety against filters or samples from the indicator playing long after the screen is exited
             failIndicator?.RemoveAndDisposeImmediately();
-            game.StopRecording();
             return base.OnExiting(e);
         }
 

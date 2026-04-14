@@ -840,7 +840,7 @@ namespace osu.Game
 
         private double replayTime = 0;
         private bool replayTimeStarted = false;
-        private ReplayPlayer player;
+        private ReplayPlayer player = null;
 
         protected ManualClock ScreenStackTimeSource = new()
         {
@@ -928,6 +928,8 @@ namespace osu.Game
 
             CaptureScreenshotter = new DrawableScreenshotter(stack, OnImageReceived, expireAfterCapture: false);
             base.Content.Add(CaptureScreenshotter);
+
+            Logger.Log("Started rendering replay.", level: LogLevel.Important);
         }
 
         public void StopRecording()
@@ -935,6 +937,8 @@ namespace osu.Game
             if (!Recording)
                 return;
             Recording = false;
+            player = null;
+            replayTimeStarted = false;
             stack.Clock = originalStackClock;
             ScreenStackClock = null;
             ffmpeg?.Dispose();
@@ -952,6 +956,8 @@ namespace osu.Game
                 throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
             if (!BassMix.MixerAddChannel((int)Audio.GlobalMixerHandle.Value, GetMixerHandle(Audio.SampleMixer), 0))
                 throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
+
+            Logger.Log("Stopped rendering replay.", level: LogLevel.Important);
         }
 
         protected override void Update()
@@ -973,7 +979,7 @@ namespace osu.Game
             {
                 recordAudio();
 
-                if (replayTimeStarted)
+                if (replayTimeStarted && !player.HasCompleted)
                 {
                     // Stop BEFORE seeking so it STAYS stopped as the image is taken.
                     player.GameplayClockContainer.Stop();
@@ -1006,7 +1012,8 @@ namespace osu.Game
             if (bytesRead == -1)
                 throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
-            ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead));
+            if (!ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead)))
+                Logger.Log("Dropped audio packet, is ffmpeg too slow?", level: LogLevel.Error);
         }
 
         protected void OnImageReceived(Image<Rgba32> image)
@@ -1037,7 +1044,8 @@ namespace osu.Game
 
             // Don't use `using` as the FFmpegCliProcess class now queues images for a separate thread to handle.
             // This was needed to deal with Windows' very small anonymous pipe buffers causing deadlocks.
-            ffmpeg.WriteFrame(image);
+            if (!ffmpeg.WriteFrame(image))
+                Logger.Log("Dropped video frame, is ffmpeg too slow?", level: LogLevel.Error);
 
             if (replayTimeStarted)
             {

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Logging;
+using osu.Framework.Screens;
 using osu.Game.Extensions;
 using osu.Game.Online.API;
 using osu.Game.Online.Leaderboards;
@@ -28,9 +29,17 @@ namespace osu.Game.Screens.Ranking
         [Resolved]
         private LeaderboardManager leaderboardManager { get; set; } = null!;
 
+        private OsuGameBase game = null!;
+
         public SoloResultsScreen(ScoreInfo score)
             : base(score)
         {
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(OsuGameBase game)
+        {
+            this.game = game;
         }
 
         protected override void LoadComplete()
@@ -45,6 +54,27 @@ namespace osu.Game.Screens.Ranking
 
             if (requestTaskSource?.Task.IsCompleted == false)
                 requestTaskSource.SetCanceled();
+        }
+
+        // replay-encoder-attempt: Open the extended statistics immediately,
+        // then wait 6 seconds to stop the recording.
+        public override void OnEntering(ScreenTransitionEvent e)
+        {
+            base.OnEntering(e);
+            if (Score == null)
+            {
+                Logger.Log("wtf?", level: LogLevel.Error);
+                return;
+            }
+            var panel = ScorePanelList.GetPanelForScore(Score);
+            void callback(PanelState panelState)
+            {
+                if (panelState == PanelState.Expanded)
+                    panel.TriggerClick();
+                Task.Delay(6_000).ContinueWith(_ => Schedule(game.StopRecording));
+                panel.StateChanged -= callback;
+            }
+            panel.StateChanged += callback;
         }
 
         protected override async Task<ScoreInfo[]> FetchScores()
