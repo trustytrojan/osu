@@ -71,7 +71,7 @@ namespace osu.Game.Screens.Ranking
             {
                 if (panelState == PanelState.Expanded)
                     panel.TriggerClick();
-                Task.Delay(6_000).ContinueWith(_ => Schedule(game.StopRecording));
+                game.CaptureInvokeActionIn(game.StopRecording, 4_000);
                 panel.StateChanged -= callback;
             }
             panel.StateChanged += callback;

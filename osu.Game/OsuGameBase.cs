@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -856,6 +857,16 @@ namespace osu.Game
         private const double frame_time_ms = 1000.0 / fps;
         private ScreenStack stack;
         private IFrameBasedClock originalStackClock;
+        private double simulatedTimeToInvokeAction;
+        private Action actionWhenSimulatedTimeReached;
+
+        // Do something after `timeFromNowMs` simulated time ms.
+        // This is kept track by ScreenStackClock.CurrentTime in Update().
+        public void CaptureInvokeActionIn(Action action, double timeFromNowMs)
+        {
+            simulatedTimeToInvokeAction = ScreenStackTimeSource.CurrentTime + timeFromNowMs;
+            actionWhenSimulatedTimeReached = action;
+        }
 
         // Audio recording stuff
         private const int samplerate = 44100;
@@ -866,6 +877,7 @@ namespace osu.Game
 
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
+        private Stopwatch captureStopwatch = new();
 
         // We just count with a double, because Player.GameplayClockContainer actually controls
         // the beatmap's Track... so all we need to do is Seek() to our simulated time!
@@ -970,7 +982,11 @@ namespace osu.Game
             // TODO: ffmpeg can be inited here using ScheduleAfterChildren()
 
             if (ScreenStackClock != null)
+            {
+                if (ScreenStackTimeSource.CurrentTime >= simulatedTimeToInvokeAction)
+                    actionWhenSimulatedTimeReached?.Invoke();
                 ScreenStackTimeSource.CurrentTime += frame_time_ms;
+            }
 
             // The player was started at the end of OnImageReceived(),
             // giving BASS a lot of time to render audio, so we can record
@@ -993,6 +1009,7 @@ namespace osu.Game
 
             CaptureScreenshotter.RequestCapture();
             currentlyCapturing = true;
+            captureStopwatch.Restart();
         }
 
         private void recordAudio()
@@ -1021,6 +1038,7 @@ namespace osu.Game
             if (!currentlyCapturing)
                 return;
             currentlyCapturing = false;
+            Logger.Log($"Capture took {captureStopwatch.Elapsed.TotalMilliseconds}ms");
 
             if (!Recording || image == null)
                 return;
