@@ -975,6 +975,7 @@ namespace osu.Game
         {
             if (!Recording)
                 return;
+            Logger.Log("Stopping recording...");
             Recording = false;
             player = null;
             replayTimeStarted = false;

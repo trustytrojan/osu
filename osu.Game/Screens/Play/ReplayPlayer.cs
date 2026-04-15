@@ -9,6 +9,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Framework.Logging;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
@@ -85,7 +86,7 @@ namespace osu.Game.Screens.Play
         /// Add a settings group to the HUD overlay. Intended to be used by rulesets to add replay-specific settings.
         /// </summary>
         /// <param name="settings">The settings group to be shown.</param>
-        public void AddSettings(PlayerSettingsGroup settings) => Schedule(() => ReplayOverlay.Settings.Add(settings));
+        public void AddSettings(PlayerSettingsGroup settings) => Schedule(() => ReplayOverlay?.Settings.Add(settings));
 
         [BackgroundDependencyLoader]
         private void load(OsuConfigManager config, OsuGameBase game)
@@ -95,7 +96,9 @@ namespace osu.Game.Screens.Play
 
             AddInternal(leaderboardProvider);
 
-            GameplayClockContainer.Add(ReplayOverlay = new ReplayOverlay());
+            // replay-encoder-attempt: Excluding the ReplayOverlay saves 1-2ms per frame.
+            if (!game.Recording)
+                GameplayClockContainer.Add(ReplayOverlay = new ReplayOverlay());
 
             playbackSettings = new PlaybackSettings
             {
@@ -106,7 +109,7 @@ namespace osu.Game.Screens.Play
             if (GameplayClockContainer is MasterGameplayClockContainer master)
                 playbackSettings.UserPlaybackRate.BindTo(master.UserPlaybackRate);
 
-            ReplayOverlay.Settings.AddAtStart(playbackSettings);
+            ReplayOverlay?.Settings.AddAtStart(playbackSettings);
 
             OsuTextFlowContainer message = new OsuTextFlowContainer(cp => cp.Font = OsuFont.Style.Body) { AutoSizeAxes = Axes.Both };
             message.AddText("Watching ");
@@ -119,7 +122,7 @@ namespace osu.Game.Screens.Play
                 Font = OsuFont.Style.Body.With(weight: FontWeight.SemiBold),
             });
 
-            ReplayOverlay.SetMessage(new ScrollingMessage(message)
+            ReplayOverlay?.SetMessage(new ScrollingMessage(message)
             {
                 Y = 96,
                 Anchor = Anchor.TopCentre,
@@ -232,8 +235,8 @@ namespace osu.Game.Screens.Play
         public override void OnSuspending(ScreenTransitionEvent e)
         {
             // replay-encoder-attempt: Stop the recording only when the user presses Escape
-            if (!ScoreProcessor.HasCompleted.Value)
-                Schedule(game.StopRecording);
+            if (!ScoreProcessor.HasCompleted.Value || e.Next is not ResultsScreen)
+                game.StopRecording();
 
             stopAllAudioEffects();
             base.OnSuspending(e);
@@ -244,8 +247,8 @@ namespace osu.Game.Screens.Play
         public override bool OnExiting(ScreenExitEvent e)
         {
             // replay-encoder-attempt: Stop the recording only when the user presses Escape
-            if (!ScoreProcessor.HasCompleted.Value)
-                Schedule(game.StopRecording);
+            if (!ScoreProcessor.HasCompleted.Value || e.Destination is not ResultsScreen)
+                game.StopRecording();
 
             // safety against filters or samples from the indicator playing long after the screen is exited
             failIndicator?.RemoveAndDisposeImmediately();
