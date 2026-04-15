@@ -875,9 +875,23 @@ namespace osu.Game
         private int myMixerHandle;
         private byte[] audioBuf = null;
 
+        public class StatisticTimer
+        {
+            private readonly Stopwatch stopwatch = new();
+            private uint count = 0;
+            private double sum = 0;
+            public double Average => sum / count;
+            public void Begin() => stopwatch.Restart();
+            public void End()
+            {
+                sum += stopwatch.Elapsed.TotalMilliseconds;
+                ++count;
+            }
+        }
+
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
-        private Stopwatch captureStopwatch = new();
+        private StatisticTimer extractTime = new(), captureTime = new();
 
         // We just count with a double, because Player.GameplayClockContainer actually controls
         // the beatmap's Track... so all we need to do is Seek() to our simulated time!
@@ -938,7 +952,20 @@ namespace osu.Game
             if (!BassMix.MixerAddChannel(myMixerHandle, GetMixerHandle(Audio.SampleMixer), 0))
                 throw new InvalidOperationException($"MixerAddChannel: ${Bass.LastError}");
 
-            CaptureScreenshotter = new DrawableScreenshotter(stack, OnImageReceived, expireAfterCapture: false);
+            Task.Run(() =>
+            {
+                while (Recording)
+                {
+                    Thread.Sleep(1_000);
+                    Logger.Log($"Extract avg: {extractTime.Average}ms; Capture avg: {captureTime.Average}ms");
+                }
+            });
+
+            CaptureScreenshotter = new DrawableScreenshotter(stack, OnImageReceived, expireAfterCapture: false)
+            {
+                OnExtractBegin = extractTime.Begin,
+                OnExtractEnd = extractTime.End,
+            };
             base.Content.Add(CaptureScreenshotter);
 
             Logger.Log("Started rendering replay.", level: LogLevel.Important);
@@ -1009,7 +1036,7 @@ namespace osu.Game
 
             CaptureScreenshotter.RequestCapture();
             currentlyCapturing = true;
-            captureStopwatch.Restart();
+            captureTime.Begin();
         }
 
         private void recordAudio()
@@ -1038,7 +1065,7 @@ namespace osu.Game
             if (!currentlyCapturing)
                 return;
             currentlyCapturing = false;
-            Logger.Log($"Capture took {captureStopwatch.Elapsed.TotalMilliseconds}ms");
+            captureTime.End();
 
             if (!Recording || image == null)
                 return;
