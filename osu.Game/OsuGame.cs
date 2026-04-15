@@ -920,14 +920,13 @@ namespace osu.Game
                             return;
                         }
 
-                        var stack = ScreenExtensions.getStack(screen);
                         var rpl = new ReplayPlayerLoader(databasedScore);
-                        stack.Push(rpl);
+                        screen.Push(rpl);
 
                         // Record the stack now so we get the loading screen too!
                         // This is purely optional. To revert to only recording the player,
                         // move the StartRecording() call back inside the lambda below.
-                        StartRecording(stack);
+                        StartRecording();
 
                         // Only set the replay clock when the ReplayPlayer has loaded
                         Action waitForNonNullPlayerThenStart = null;
@@ -1146,7 +1145,7 @@ namespace osu.Game
                             Children = new Drawable[]
                             {
                                 backReceptor = new ScreenFooter.BackReceptor(),
-                                ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
+                                CaptureScreenStack = ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
                                 logoContainer = new Container { RelativeSizeAxes = Axes.Both },
                                 // TODO: what is this? why is this?
                                 // TODO: this is being screen scaled even though it's probably AN OVERLAY.

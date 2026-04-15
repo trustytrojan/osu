@@ -8,7 +8,7 @@ using osu.Game.Graphics.Containers;
 
 namespace osu.Game.Screens
 {
-    public partial class OsuScreenStack : ScreenStack
+    public partial class OsuScreenStack : CapturableScreenStack
     {
         [Cached]
         private BackgroundScreenStack backgroundScreenStack;

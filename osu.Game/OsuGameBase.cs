@@ -70,6 +70,7 @@ using osu.Game.Resources;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
+using osu.Game.Screens;
 using osu.Game.Screens.Play;
 using osu.Game.Skinning;
 using osu.Game.Utils;
@@ -855,7 +856,7 @@ namespace osu.Game
         public bool Recording = false;
         private const int fps = 60;
         private const double frame_time_ms = 1000.0 / fps;
-        private ScreenStack stack;
+        protected CapturableScreenStack CaptureScreenStack;
         private IFrameBasedClock originalStackClock;
         private double simulatedTimeToInvokeAction;
         private Action actionWhenSimulatedTimeReached;
@@ -891,7 +892,7 @@ namespace osu.Game
 
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
-        private StatisticTimer extractTime = new(), captureTime = new();
+        private StatisticTimer extractTime = new(), captureTime = new(), audioTime = new();
 
         // We just count with a double, because Player.GameplayClockContainer actually controls
         // the beatmap's Track... so all we need to do is Seek() to our simulated time!
@@ -901,7 +902,7 @@ namespace osu.Game
             this.player = player;
         }
 
-        protected void StartRecording(ScreenStack stack)
+        protected void StartRecording()
         {
             // This allows for a 10-fold speed increase over image.CreateReadOnlyPixelSpan()!
             // See FFmpegCliProcess.WriteFrame().
@@ -916,12 +917,12 @@ namespace osu.Game
             ffmpeg = null;
             currentlyCapturing = false;
 
-            this.stack = stack;
-            originalStackClock = stack.Clock;
-            stack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
+            // this.CaptureScreenStack = stack;
+            originalStackClock = CaptureScreenStack.Clock;
+            CaptureScreenStack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
 
             { // Finish transforms of the ENTIRE scene graph
-                Drawable current = stack;
+                Drawable current = CaptureScreenStack;
                 while (current != null)
                 {
                     current.FinishTransforms(propagateChildren: true);
@@ -957,16 +958,20 @@ namespace osu.Game
                 while (Recording)
                 {
                     Thread.Sleep(1_000);
-                    Logger.Log($"Extract avg: {extractTime.Average}ms; Capture avg: {captureTime.Average}ms");
+                    Logger.Log($"Average times: Extract = {extractTime.Average}ms; Capture = {captureTime.Average}ms; Audio = {audioTime.Average}ms");
                 }
             });
 
-            CaptureScreenshotter = new DrawableScreenshotter(stack, OnImageReceived, expireAfterCapture: false)
+            // We can have both, just request from one of them at a time when benchmarking in Update()
+
+            CaptureScreenshotter = new DrawableScreenshotter(CaptureScreenStack, OnImageReceived, expireAfterCapture: false)
             {
                 OnExtractBegin = extractTime.Begin,
                 OnExtractEnd = extractTime.End,
             };
             base.Content.Add(CaptureScreenshotter);
+
+            CaptureScreenStack.OnImageReceived = OnImageReceived;
 
             Logger.Log("Started rendering replay.", level: LogLevel.Important);
         }
@@ -975,11 +980,10 @@ namespace osu.Game
         {
             if (!Recording)
                 return;
-            Logger.Log("Stopping recording...");
             Recording = false;
             player = null;
             replayTimeStarted = false;
-            stack.Clock = originalStackClock;
+            CaptureScreenStack.Clock = originalStackClock;
             ScreenStackClock = null;
             ffmpeg?.Dispose();
             ffmpeg = null;
@@ -1035,7 +1039,9 @@ namespace osu.Game
                 }
             });
 
-            CaptureScreenshotter.RequestCapture();
+            CaptureScreenStack.RequestCapture();
+            // CaptureScreenshotter.RequestCapture();
+
             currentlyCapturing = true;
             captureTime.Begin();
         }
@@ -1053,12 +1059,14 @@ namespace osu.Game
                 audioBuf = new byte[samples * sampleSize];
             }
 
+            audioTime.Begin();
             int bytesRead = Bass.ChannelGetData(myMixerHandle, audioBuf, audioBuf.Length);
             if (bytesRead == -1)
                 throw new InvalidOperationException($"BASS error: {Bass.LastError}");
 
             if (!ffmpeg.WriteAudio(audioBuf.AsSpan().Slice(0, bytesRead)))
                 Logger.Log("Dropped audio packet, is ffmpeg too slow?", level: LogLevel.Error);
+            audioTime.End();
         }
 
         protected void OnImageReceived(Image<Rgba32> image)
