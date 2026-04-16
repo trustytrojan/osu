@@ -851,7 +851,6 @@ namespace osu.Game
             Rate = 1,
         };
         public IFrameBasedClock ScreenStackClock = null;
-        public DrawableScreenshotter CaptureScreenshotter = null;
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
         private const int fps = 60;
@@ -962,17 +961,7 @@ namespace osu.Game
                 }
             });
 
-            // We can have both, just request from one of them at a time when benchmarking in Update()
-
-            CaptureScreenshotter = new DrawableScreenshotter(CaptureScreenStack, OnImageReceived, expireAfterCapture: false)
-            {
-                OnExtractBegin = extractTime.Begin,
-                OnExtractEnd = extractTime.End,
-            };
-            base.Content.Add(CaptureScreenshotter);
-
             CaptureScreenStack.OnImageReceived = OnImageReceived;
-
             Logger.Log("Started rendering replay.", level: LogLevel.Important);
         }
 
@@ -987,7 +976,6 @@ namespace osu.Game
             ScreenStackClock = null;
             ffmpeg?.Dispose();
             ffmpeg = null;
-            base.Content.Remove(CaptureScreenshotter, true);
 
             // Remove mixers from my mixer
             if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.TrackMixer)))
@@ -1040,8 +1028,6 @@ namespace osu.Game
             });
 
             CaptureScreenStack.RequestCapture();
-            // CaptureScreenshotter.RequestCapture();
-
             currentlyCapturing = true;
             captureTime.Begin();
         }
