@@ -891,7 +891,7 @@ namespace osu.Game
 
         // Lock that waits for the Image before advancing replay time
         private bool currentlyCapturing = false;
-        private StatisticTimer extractTime = new(), captureTime = new(), audioTime = new();
+        private StatisticTimer extractTime = new(), captureTime = new(), audioTime = new(), updateChildrenTime = new();
 
         // We just count with a double, because Player.GameplayClockContainer actually controls
         // the beatmap's Track... so all we need to do is Seek() to our simulated time!
@@ -957,11 +957,14 @@ namespace osu.Game
                 while (Recording)
                 {
                     Thread.Sleep(1_000);
-                    Logger.Log($"Average times: Extract = {extractTime.Average}ms; Capture = {captureTime.Average}ms; Audio = {audioTime.Average}ms");
+                    Logger.Log($"Average times: Extract = {extractTime.Average}ms; Capture = {captureTime.Average}ms; Audio = {audioTime.Average}ms; Update children = {updateChildrenTime.Average}ms");
                 }
             });
 
             CaptureScreenStack.OnImageReceived = OnImageReceived;
+            CaptureScreenStack.OnExtractBegin = extractTime.Begin;
+            CaptureScreenStack.OnExtractEnd = extractTime.End;
+
             Logger.Log("Started rendering replay.", level: LogLevel.Important);
         }
 
@@ -1013,8 +1016,10 @@ namespace osu.Game
             // once children have updated with the new clock state.
             ScheduleAfterChildren(() =>
             {
+                updateChildrenTime.End();
                 recordAudio();
 
+                // Don't stop the music if the replay finished.
                 if (replayTimeStarted && !player.HasCompleted)
                 {
                     // Stop BEFORE seeking so it STAYS stopped as the image is taken.
@@ -1030,6 +1035,7 @@ namespace osu.Game
             CaptureScreenStack.RequestCapture();
             currentlyCapturing = true;
             captureTime.Begin();
+            updateChildrenTime.Begin();
         }
 
         private void recordAudio()
