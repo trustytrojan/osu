@@ -926,7 +926,7 @@ namespace osu.Game
                         // Record the stack now so we get the loading screen too!
                         // This is purely optional. To revert to only recording the player,
                         // move the StartRecording() call back inside the lambda below.
-                        StartRecording();
+                        StartRecording(ScreenExtensions.getStack(screen));
 
                         // Only set the replay clock when the ReplayPlayer has loaded
                         Action waitForNonNullPlayerThenStart = null;
@@ -1145,7 +1145,7 @@ namespace osu.Game
                             Children = new Drawable[]
                             {
                                 backReceptor = new ScreenFooter.BackReceptor(),
-                                CaptureScreenStack = ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
+                                ScreenStack = new OsuScreenStack { RelativeSizeAxes = Axes.Both },
                                 logoContainer = new Container { RelativeSizeAxes = Axes.Both },
                                 // TODO: what is this? why is this?
                                 // TODO: this is being screen scaled even though it's probably AN OVERLAY.

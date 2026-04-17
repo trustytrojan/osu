@@ -11,6 +11,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using HarmonyLib;
 using JetBrains.Annotations;
 using ManagedBass;
 using ManagedBass.Mix;
@@ -850,12 +851,13 @@ namespace osu.Game
             IsRunning = true,
             Rate = 1,
         };
-        public IFrameBasedClock ScreenStackClock = null;
+        // public IFrameBasedClock ScreenStackClock = null;
         private FFmpegCliProcess ffmpeg;
         public bool Recording = false;
         private const int fps = 60;
         private const double frame_time_ms = 1000.0 / fps;
-        protected CapturableScreenStack CaptureScreenStack;
+        // protected CapturableScreenStack CaptureScreenStack;
+        private ScreenStackScreenshotter screenshotter;
         private IFrameBasedClock originalStackClock;
         private double simulatedTimeToInvokeAction;
         private Action actionWhenSimulatedTimeReached;
@@ -901,7 +903,7 @@ namespace osu.Game
             this.player = player;
         }
 
-        protected void StartRecording()
+        protected void StartRecording(ScreenStack target)
         {
             // This allows for a 10-fold speed increase over image.CreateReadOnlyPixelSpan()!
             // See FFmpegCliProcess.WriteFrame().
@@ -917,11 +919,11 @@ namespace osu.Game
             currentlyCapturing = false;
 
             // this.CaptureScreenStack = stack;
-            originalStackClock = CaptureScreenStack.Clock;
-            CaptureScreenStack.Clock = ScreenStackClock = new MyClock(ScreenStackTimeSource);
+            originalStackClock = target.Clock;
+            target.Clock = new MyClock(ScreenStackTimeSource);
 
             { // Finish transforms of the ENTIRE scene graph
-                Drawable current = CaptureScreenStack;
+                Drawable current = target;
                 while (current != null)
                 {
                     current.FinishTransforms(propagateChildren: true);
@@ -961,9 +963,14 @@ namespace osu.Game
                 }
             });
 
-            CaptureScreenStack.OnImageReceived = OnImageReceived;
-            CaptureScreenStack.OnExtractBegin = extractTime.Begin;
-            CaptureScreenStack.OnExtractEnd = extractTime.End;
+            screenshotter = new()
+            {
+                Target = target,
+                OnImageReceived = OnImageReceived,
+                OnExtractBegin = extractTime.Begin,
+                OnExtractEnd = extractTime.End
+            };
+            Add(screenshotter);
 
             Logger.Log("Started rendering replay.", level: LogLevel.Important);
         }
@@ -975,10 +982,11 @@ namespace osu.Game
             Recording = false;
             player = null;
             replayTimeStarted = false;
-            CaptureScreenStack.Clock = originalStackClock;
-            ScreenStackClock = null;
+            screenshotter.Target.Clock = originalStackClock;
+            // ScreenStackClock = null;
             ffmpeg?.Dispose();
             ffmpeg = null;
+            Remove(screenshotter, true);
 
             // Remove mixers from my mixer
             if (!BassMix.MixerRemoveChannel(GetMixerHandle(Audio.TrackMixer)))
@@ -1004,7 +1012,7 @@ namespace osu.Game
 
             // TODO: ffmpeg can be inited here using ScheduleAfterChildren()
 
-            if (ScreenStackClock != null)
+            if (screenshotter.Target.Clock != null)
             {
                 if (ScreenStackTimeSource.CurrentTime >= simulatedTimeToInvokeAction)
                     actionWhenSimulatedTimeReached?.Invoke();
@@ -1032,7 +1040,8 @@ namespace osu.Game
                 }
             });
 
-            CaptureScreenStack.RequestCapture();
+            // CaptureScreenStack.RequestCapture();
+            screenshotter.RequestCapture();
             currentlyCapturing = true;
             captureTime.Begin();
             updateChildrenTime.Begin();
