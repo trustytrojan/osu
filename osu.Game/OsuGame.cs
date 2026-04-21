@@ -965,7 +965,7 @@ namespace osu.Game
             return importTask;
         }
 
-        protected virtual Loader CreateLoader() => new Loader();
+        protected virtual Loader CreateLoader() => new SoloSongSelectLoader();
 
         protected virtual UpdateManager CreateUpdateManager() => new UpdateManager();
 
@@ -1559,8 +1559,8 @@ namespace osu.Game
             if (e.Repeat)
                 return false;
 
-            // Wait until we're loaded at least to the intro before allowing various interactions.
-            if (introScreen == null) return false;
+            // Wait until startup screens are done before allowing various interactions if intro is skipped.
+            if (introScreen == null && ScreenStack.CurrentScreen is StartupScreen) return false;
 
             switch (e.Action)
             {
